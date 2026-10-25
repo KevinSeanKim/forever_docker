@@ -2,7 +2,7 @@
 
 use super::Memory;
 use std::ffi::c_void;
-use windows::Win32::Foundation::{CloseHandle, HANDLE, STILL_ACTIVE};
+use windows::Win32::Foundation::{CloseHandle, FILETIME, HANDLE, STILL_ACTIVE};
 use windows::Win32::System::Diagnostics::Debug::{ReadProcessMemory, WriteProcessMemory};
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
@@ -10,7 +10,7 @@ use windows::Win32::System::Diagnostics::ToolHelp::{
 use windows::Win32::System::Memory::{VirtualQueryEx, MEMORY_BASIC_INFORMATION, MEM_COMMIT, MEM_PRIVATE, PAGE_READWRITE};
 use windows::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
 use windows::Win32::System::Threading::{
-    GetExitCodeProcess, OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_OPERATION, PROCESS_VM_READ, PROCESS_VM_WRITE,
+    GetExitCodeProcess, GetProcessTimes, OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_OPERATION, PROCESS_VM_READ, PROCESS_VM_WRITE,
 };
 
 pub struct ProcessMemory {
@@ -114,7 +114,8 @@ pub fn find_client() -> Option<ProcessMemory> {
             let name = String::from_utf16_lossy(&entry.szExeFile[..len]);
             if name.eq_ignore_ascii_case("WowB.exe") {
                 if let Some(p) = ProcessMemory::open(entry.th32ProcessID) {
-                    let rss = p.rss();
+                    let (mut c, mut e, mut k, mut u) = (FILETIME::default(), FILETIME::default(), FILETIME::default(), FILETIME::default());
+                    let rss = if GetProcessTimes(p.handle, &mut c, &mut e, &mut k, &mut u).is_ok() { ((c.dwHighDateTime as u64) << 32) | c.dwLowDateTime as u64 } else { 0 };
                     if best.as_ref().map_or(true, |(r, _)| rss > *r) {
                         best = Some((rss, p));
                     }
